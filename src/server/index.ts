@@ -9,6 +9,27 @@ import {
   AnchorPostData,
 } from '../shared/types/api';
 import { redis, reddit, createServer, context, getServerPort } from '@devvit/web/server';
+// Use a bundle-safe dictionary that inlines words as an array
+import englishWords from 'an-array-of-english-words';
+
+// Simple dictionary loader (English word list)
+let DICT: Set<string> | null = null;
+async function getDict(): Promise<Set<string>> {
+  if (DICT) return DICT;
+  const words: string[] = (englishWords as unknown as string[]) ?? [];
+  DICT = new Set<string>(words.map((w) => w.toLowerCase()));
+  return DICT;
+}
+
+function isAlpha(s: string): boolean {
+  return /^[a-zA-Z]+$/.test(s);
+}
+
+function stripAnchorFromWord(anchor: string, word: string): string | null {
+  if (word.startsWith(anchor)) return word.slice(anchor.length);
+  if (word.endsWith(anchor)) return word.slice(0, word.length - anchor.length);
+  return null;
+}
 import { createPost } from './core/post';
 
 const app = express();
@@ -70,20 +91,45 @@ router.get<
     return;
   }
   const data = (postData as unknown) as AnchorPostData | undefined;
-  res.json({
+  let clues: string[] | undefined = undefined;
+  if (data?.anchor && Array.isArray(data.words)) {
+    const a = data.anchor.toLowerCase();
+    clues = data.words
+      .map((w) => stripAnchorFromWord(a, w.toLowerCase()))
+      .filter((c): c is string => c !== null);
+  }
+  // per-user state
+  const username = (await reddit.getCurrentUsername()) ?? 'anonymous';
+  const attemptsKey = `anchor:user:attempts:${postId}:${username}`;
+  const solvedKey = `anchor:user:solved:${postId}:${username}`;
+  const scoreKey = `anchor:user:score:${username}`; // cumulative (optional)
+  const [attemptsStr, hasSolvedStr, scoreStr] = await Promise.all([
+    redis.get(attemptsKey),
+    redis.get(solvedKey),
+    redis.get(scoreKey),
+  ]);
+  const attempts = attemptsStr ? parseInt(attemptsStr) : 0;
+  const hasSolved = hasSolvedStr === '1';
+  const score = scoreStr ? parseInt(scoreStr) : undefined;
+  const base: AnchorInitResponse = {
     type: 'anchor_init',
     postId,
     hasChallenge: !!data,
-    clues: data?.clues ?? [],
-    attempts: data?.attempts ?? 0,
-  });
+    clues: clues ?? [],
+    attempts,
+    hasSolved,
+  } as AnchorInitResponse;
+  if (typeof score === 'number') (base as any).score = score;
+  if (hasSolved && data?.anchor) (base as any).anchor = data.anchor;
+  if (hasSolved && data?.words) (base as any).words = data.words;
+  res.json(base);
 });
 
 // Anchor Word: Create challenge (sets post data)
 router.post<
   { postId: string },
   AnchorCreateResponse | { status: string; message: string },
-  { answer: string; clues: string[] }
+  { anchor: string; words: string[] }
 >('/api/anchor/create', async (req, res): Promise<void> => {
   const { subredditName } = context;
   if (!subredditName) {
@@ -91,11 +137,32 @@ router.post<
     return;
   }
 
-  const answer = (req.body?.answer ?? '').toString().trim();
-  const clues = Array.isArray(req.body?.clues) ? req.body.clues.map((c: unknown) => String(c)) : [];
-  if (!answer || clues.length === 0) {
-    res.status(400).json({ status: 'error', message: 'answer and clues are required' });
+  const anchor = (req.body?.anchor ?? '').toString().trim().toLowerCase();
+  const words = Array.isArray(req.body?.words) ? req.body.words.map((c: unknown) => String(c).trim().toLowerCase()) : [];
+  if (!anchor || words.length < 4 || words.length > 6) {
+    res.status(400).json({ status: 'error', message: 'Provide an anchor and 4–6 words' });
     return;
+  }
+
+  const dict = await getDict();
+  if (!isAlpha(anchor) || !dict.has(anchor)) {
+    res.status(400).json({ status: 'error', message: 'Anchor must be a real word (letters only)' });
+    return;
+  }
+  for (const w of words) {
+    if (!isAlpha(w) || !dict.has(w)) {
+      res.status(400).json({ status: 'error', message: `Invalid word: ${w}. All words must be real.` });
+      return;
+    }
+    const stripped = stripAnchorFromWord(anchor, w);
+    if (!stripped || stripped.length === 0) {
+      res.status(400).json({ status: 'error', message: `Each word must start or end with the anchor and be longer than it: ${w}` });
+      return;
+    }
+    if (!dict.has(stripped)) {
+      res.status(400).json({ status: 'error', message: `Each remainder must be a valid word too: ${w} → ${stripped}` });
+      return;
+    }
   }
 
   try {
@@ -114,7 +181,7 @@ router.post<
     });
 
     // Attach game data to the newly created post
-    const newData: AnchorPostData = { answer: answer.toLowerCase(), clues, attempts: 0 };
+    const newData: AnchorPostData = { anchor, words, attempts: 0 };
     await created.setPostData(newData);
 
     res.json({
@@ -150,11 +217,29 @@ router.post<
     res.status(400).json({ status: 'error', message: 'guess is required' });
     return;
   }
-  const attempts = (data.attempts ?? 0) + 1;
-  const result = guess === data.answer ? 'correct' : 'incorrect';
-  // persist attempts
-  const post = await reddit.getPostById(postId);
-  await post.setPostData({ ...data, attempts });
+  const username = (await reddit.getCurrentUsername()) ?? 'anonymous';
+  const attemptsKey = `anchor:user:attempts:${postId}:${username}`;
+  const solvedKey = `anchor:user:solved:${postId}:${username}`;
+  const scoreKey = `anchor:user:score:${username}`;
+  const prevAttempts = parseInt((await redis.get(attemptsKey)) ?? '0');
+  const wasSolved = (await redis.get(solvedKey)) === '1';
+  if (wasSolved) {
+    res.json({ type: 'anchor_guess', postId, result: 'correct', attempts: prevAttempts, hasSolved: true, anchor: data.anchor, words: data.words });
+    return;
+  }
+  const attempts = prevAttempts + 1;
+  await redis.set(attemptsKey, attempts.toString());
+  const result = guess === data.anchor ? 'correct' : 'incorrect';
+  if (result === 'correct') {
+    // scoring rules: 1st=20, 2nd=15, 3rd=10, else=5
+    const scoreAward = attempts === 1 ? 20 : attempts === 2 ? 15 : attempts === 3 ? 10 : 5;
+    await Promise.all([
+      redis.set(solvedKey, '1'),
+      redis.incrBy(scoreKey, scoreAward),
+    ]);
+    res.json({ type: 'anchor_guess', postId, result, attempts, hasSolved: true, score: scoreAward, anchor: data.anchor, words: data.words });
+    return;
+  }
   res.json({ type: 'anchor_guess', postId, result, attempts });
 });
 

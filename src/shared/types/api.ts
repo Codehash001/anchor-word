@@ -22,8 +22,13 @@ export type AnchorInitResponse = {
   type: 'anchor_init';
   postId: string;
   hasChallenge: boolean;
-  clues?: string[];
-  attempts?: number;
+  clues?: string[]; // derived from words by stripping anchor prefix/suffix
+  attempts?: number; // per-user attempts
+  hasSolved?: boolean;
+  score?: number;
+  // Reveal data when solved
+  anchor?: string;
+  words?: string[];
 };
 
 export type AnchorCreateResponse = {
@@ -36,11 +41,15 @@ export type AnchorGuessResponse = {
   type: 'anchor_guess';
   postId: string;
   result: 'correct' | 'incorrect';
-  attempts: number;
+  attempts: number; // per-user attempts after this guess
+  hasSolved?: boolean; // true when result is correct
+  score?: number; // awarded points when correct
+  anchor?: string; // include reveal data on correct
+  words?: string[];
 };
 
 export type AnchorPostData = {
-  answer: string; // lowercased answer
-  clues: string[];
+  anchor: string; // lowercased anchor substring
+  words: string[]; // 4-6 words that begin OR end with anchor
   attempts: number;
 };

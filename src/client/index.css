@@ -9,6 +9,46 @@
   --panel-border: rgba(124, 58, 237, 0.35);
 }
 
+/* Inline status banner (below input) */
+.status-banner {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+.status-success {
+  background: linear-gradient(180deg, #e9fff1, #defbea);
+  border-color: #82d29f;
+  color: #074b2a;
+}
+.status-error {
+  background: linear-gradient(180deg, #fff0f3, #ffe6ea);
+  border-color: #ffb3c0;
+  color: #6b1120;
+}
+.status-emoji { font-size: 22px; }
+
+/* Toasts */
+.toast-wrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; gap: 10px; z-index: 5; }
+.toast {
+  border-radius: 16px; padding: 14px 18px; font-weight: 900; font-size: 18px; text-align: center;
+  color: #0d1020; border: 1px solid #b9c6ff; box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: toastIn 240ms ease-out;
+}
+.toast-success { border-color: #82d29f; background: linear-gradient(180deg, rgba(233,255,241,0.9), rgba(222,251,234,0.9)); }
+.toast-error { border-color: #ffb3c0; background: linear-gradient(180deg, rgba(255,240,243,0.9), rgba(255,230,234,0.9)); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
 html, body, #root { height: 100%; }
 
 /* Scope the gamey look so it does not leak into Reddit */
@@ -209,33 +249,85 @@ html, body, #root { height: 100%; }
   --cc-p5: #624cab; /* deep accent */
 
   background: #EBEFFF;
-  border: 1px solid var(--cc-p2);
-  border-radius: 18px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 6px rgba(0,0,0,0.04);
+  border: 1px solid var(--cc-p1); /* lighter border */
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.65),
+    0 6px 14px rgba(98, 76, 171, 0.08);
+  position: relative; /* for toast overlay */
 }
 .theme-reddit .cc-header { display: flex; align-items: center; gap: 12px; }
 .theme-reddit .cc-back {
-  width: 36px; height: 36px; border-radius: 8px;
+  width: 34px; height: 34px; border-radius: 8px;
   background: var(--cc-p4); color: white; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--cc-p5); box-shadow: 0 2px 0 var(--cc-p5);
+  border: 1px solid var(--cc-p1); box-shadow: 0 2px 0 rgba(98,76,171,0.25);
 }
 .theme-reddit .cc-title { font-weight: 800; font-size: 28px; letter-spacing: 0.2px; }
 .theme-reddit .cc-subtitle { color: #41556a; margin-top: 6px; margin-bottom: 12px; }
 
-.theme-reddit .cc-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+/* Word inputs grid: single-column on mobile, 3-col on desktop */
+.theme-reddit .cc-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 768px) {
+  .theme-reddit .cc-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
 
 .theme-reddit .cc-input {
-  height: 48px; border-radius: 16px; padding: 0 14px; background: var(--cc-p3);
-  border: 1.5px solid var(--cc-p1); outline: none; box-shadow: none; color: var(--cc-p5);
+  height: 46px; border-radius: 14px; padding: 0 14px; background: #ffffff;
+  border: 1px solid var(--cc-p1); outline: none; box-shadow: 0 2px 0 rgba(0,0,0,0.06);
+  color: #1a1a1b;
 }
-.theme-reddit .cc-input::placeholder { color: var(--cc-p2); }
-.theme-reddit .cc-input:focus { border-color: var(--cc-p4); box-shadow: 0 0 0 3px rgba(113,137,255,0.25), 0 2px 0 rgba(0,0,0,0.06); }
+.theme-reddit .cc-input::placeholder { color: #7382b7; }
+.theme-reddit .cc-input:focus { border-color: var(--cc-p4); box-shadow: 0 0 0 3px rgba(113,137,255,0.22), 0 2px 0 rgba(0,0,0,0.06); }
 
 .theme-reddit .cc-primary {
   height: 44px; padding: 0 18px; border-radius: 12px; color: white; font-weight: 800;
-  background: linear-gradient(135deg, var(--cc-p5), var(--cc-p4)); box-shadow: 0 3px 0 var(--cc-p5);
+  background: linear-gradient(135deg, var(--cc-p5), var(--cc-p4)); box-shadow: 0 3px 0 rgba(98,76,171,0.35);
 }
 .theme-reddit .cc-primary:hover { filter: brightness(1.05); }
 
 .theme-reddit .cc-muted { color: var(--cc-p2); }
 .theme-reddit .cc-error { color: var(--cc-p5); font-weight: 700; }
+
+/* Full-height panel, no scroll */
+.fullpane { height: 100%; overflow: hidden; }
+.fullpane .cc-box { height: 100%; display: flex; flex-direction: column; }
+.fullpane .pane-content { flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; gap: 16px; }
+.fullpane .pane-footer { padding-top: 6px; }
+
+/* Chips for clues */
+.chip-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+@media (max-width: 420px) { .chip-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.chip {
+  background: linear-gradient(180deg, #c1cefe 0%, #b1befe 100%);
+  color: #222;
+  font-weight: 800;
+  border-radius: 22px;
+  padding: 10px 16px;
+  text-align: center;
+  border: 1px solid #b9c6ff;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.06);
+}
+.chip .text { color: #10121a; }
+
+/* Large input row */
+.guess-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.guess-input { height: 46px; border-radius: 14px; background: #ffffff; border: 1px solid #c1cefe; padding: 0 16px; box-shadow: 0 2px 0 rgba(0,0,0,0.06); outline: none; }
+.guess-input:focus { border-color: #7189ff; box-shadow: 0 0 0 3px rgba(113,137,255,0.22), 0 2px 0 rgba(0,0,0,0.06); }
+.guess-btn { height: 46px; padding: 0 18px; border-radius: 12px; color: #fff; font-weight: 800; background: linear-gradient(135deg, #7b6be0, #7189ff); box-shadow: 0 3px 0 rgba(98,76,171,0.28); }
+
+/* Footer buttons */
+.btn-lg { height: 54px; border-radius: 14px; font-weight: 800; font-size: 18px; border: 1px solid #333; box-shadow: 0 4px 0 rgba(0,0,0,0.2); display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+.btn-sky { background: #a0ddff; color: #0d2233; border-color: #758ecd; }
+.btn-indigo { background: #758ecd; color: #0d2233; border-color: #624cab; }
+
+/* Attempts pill */
+.attempts-pill {
+  background: linear-gradient(180deg, #b9c8ff 0%, #aebcfb 100%);
+  color: #222;
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font-weight: 800;
+  font-size: 12px;
+  border: 1px solid #9fb0ff;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.06);
+}

@@ -10,10 +10,13 @@ export const App = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
 
+
   const canSubmitCreate = useMemo(() => {
     const a = anchor.trim();
     const filled = words.map((w) => w.trim()).filter(Boolean);
-    return a.length > 0 && filled.length >= 4 && filled.every((w) => w.includes(a));
+    const okCount = filled.length >= 4 && filled.length <= 6;
+    const okPattern = a.length > 0 && filled.every((w) => (w.startsWith(a) || w.endsWith(a)) && w.length > a.length);
+    return okCount && okPattern;
   }, [anchor, words]);
 
   const onChangeWord = (i: number, value: string) => {
@@ -28,12 +31,12 @@ export const App = () => {
       setError('Enter the shared anchor substring.');
       return;
     }
-    if (filled.length < 4) {
-      setError('Please provide at least 4 words.');
+    if (filled.length < 4 || filled.length > 6) {
+      setError('Please provide 4–6 words.');
       return;
     }
-    if (!filled.every((w) => w.includes(a))) {
-      setError('All words must contain the anchor substring.');
+    if (!filled.every((w) => (w.startsWith(a) || w.endsWith(a)) && w.length > a.length)) {
+      setError('Each word must start or end with the anchor and be longer than it.');
       return;
     }
     try {
@@ -91,78 +94,76 @@ export const App = () => {
   }
 
   return (
-    <div className="theme-reddit p-4 md:p-6 max-w-2xl mx-auto">
-      <div className="cc-box p-4 md:p-6">
-        <div className="accent-bar mb-3" />
-        <div className="flex items-start gap-3">
-          <div className="rdt-title">Anchor Word</div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="rdt-badge" title="Number of attempts so far">
-              <span className="dot" /> Attempts: {state.attempts}
+    <div className="theme-reddit fullpane p-4 md:p-6 max-w-2xl mx-auto">
+      <div className="cc-box p-5 md:p-7">
+        <div className="pane-content">
+          {/* Header */}
+          <div className="flex items-start gap-3">
+            <div className="flex items-center gap-3">
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0b0b0b' }} />
+              <div className="rdt-title text-[26px]">Anchor Word</div>
             </div>
-            <div className="muted" role="img" aria-label="help">?</div>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="attempts-pill" title="Number of attempts so far">
+                Attempts: {state.attempts}
+              </div>
+              <div className="muted" role="img" aria-label="help">?</div>
+            </div>
           </div>
-        </div>
 
-        <p className="mt-3 muted">Guess the hidden anchor substring shared by all the words below.</p>
+          <p className="mt-2 cc-muted" style={{ fontSize: 16 }}>
+            Guess the hidden anchor substring shared by all the words below.
+          </p>
 
-        <div className="mt-3 rdt-panel p-3">
-          {state.loading ? (
-            <div>Loading…</div>
-          ) : state.hasChallenge ? (
-            <ul className="list-disc list-inside">
-              {state.clues.map((c, i) => (
-                <li key={i}>{c}</li>
-              ))}
-            </ul>
-          ) : (
-            <div>No challenge found for this post. Use "Create a challenge" to get started.</div>
+          {/* Clue chips */}
+          <div className="chip-grid mt-2">
+            {state.loading ? (
+              <div>Loading…</div>
+            ) : state.hasChallenge ? (
+              state.clues.map((c, i) => (
+                <div key={i} className="chip"><span className="text">{c}</span></div>
+              ))
+            ) : (
+              <div className="cc-muted">No challenge found for this post. Use "Create a challenge" to get started.</div>
+            )}
+          </div>
+
+          {/* Guess input */}
+          <div className="guess-row mt-4">
+            <input
+              aria-label="Type your guess"
+              placeholder="Type your guess"
+              className="guess-input"
+              value={guess}
+              onChange={(e) => setGuess(e.target.value)}
+              disabled={!canGuess}
+            />
+            <button className="guess-btn" disabled={!canGuess} onClick={submitGuess}>
+              Guess
+            </button>
+          </div>
+
+          {/* Inline status banner below input */}
+          {state.result !== 'idle' && (
+            <div className={`status-banner ${state.result === 'correct' ? 'status-success' : 'status-error'}`}>
+              <span className="status-emoji" role="img" aria-label={state.result === 'correct' ? 'success' : 'error'}>
+                {state.result === 'correct' ? '🎉' : '❌'}
+              </span>
+              {state.result === 'correct'
+                ? `Correct! You solved it in ${state.attempts} ${state.attempts === 1 ? 'attempt' : 'attempts'}.`
+                : `Not quite. Attempts so far: ${state.attempts}. Try again!`}
+            </div>
           )}
         </div>
 
-        {/* Guess input */}
-        <div className="mt-4 flex items-center gap-3">
-          <input
-            aria-label="Type your guess"
-            placeholder="Type your guess"
-            className="flex-1 rdt-input"
-            value={guess}
-            onChange={(e) => setGuess(e.target.value)}
-            disabled={!canGuess}
-          />
-          <button
-            className="btn btn-primary"
-            disabled={!canGuess}
-            onClick={submitGuess}
-          >
-            Guess
-          </button>
-        </div>
-
-        {state.result !== 'idle' && (
-          <div
-            className={`mt-2 text-sm result-pop ${state.result === 'correct' ? 'result-correct' : 'result-wrong'}`}
-          >
-            {state.result === 'correct' ? 'Correct! 🎉' : 'Not quite. Try again!'} (Attempts: {state.attempts})
+        {/* Footer */}
+        <div className="pane-footer">
+          <div className="flex gap-3">
+            <button className="btn-lg btn-sky flex-1">Skip ⟳</button>
+            <button className="btn-lg btn-indigo flex-1" onClick={() => setCreating(true)}>
+              Create a challenge ✎
+            </button>
           </div>
-        )}
-
-        {/* Attempts progress */}
-        <div className="mt-3 rdt-progress" aria-hidden>
-          <div
-            className="rdt-progress-bar"
-            style={{ width: `${Math.min(100, Math.max(0, state.attempts * 16))}%` }}
-          />
-        </div>
-
-        <div className="mt-4 flex gap-3">
-          <button className="btn btn-secondary">Skip</button>
-          <button
-            className="btn btn-primary"
-            onClick={() => setCreating(true)}
-          >
-            Create a challenge
-          </button>
         </div>
       </div>
     </div>

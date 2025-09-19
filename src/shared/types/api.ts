@@ -53,3 +53,16 @@ export type AnchorPostData = {
   words: string[]; // 4-6 words that begin OR end with anchor
   attempts: number;
 };
+
+// Leaderboard
+export type LeaderboardEntry = {
+  username: string;
+  score: number;
+  rank: number;
+};
+
+export type LeaderboardResponse = {
+  type: 'leaderboard';
+  top: LeaderboardEntry[];
+  me?: { username: string; score: number; rank: number };
+};

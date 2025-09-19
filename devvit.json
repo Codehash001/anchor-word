@@ -32,7 +32,15 @@
     "redis": true,
     "reddit": {
       "enable": true,
-      "asUser": ["SUBMIT_POST"]
+      "asUser": ["SUBMIT_POST", "SUBMIT_COMMENT"]
+    },
+    "http": {
+      "enable": true,
+      "domains": [
+        "www.reddit.com",
+        "reddit.com",
+        "oauth.reddit.com"
+      ]
     }
   },
   "dev": {
